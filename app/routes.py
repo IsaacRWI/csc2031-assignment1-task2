@@ -19,10 +19,12 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
         if user and user.check_password(form.password.data):
-            login_user(user)
-            regenerate_session()
-            next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
+            if user.mfa_enabled:
+                session["pre_mfa_user_id"] = user.id
+                return redirect(url_for("main.mfa_verify"))
+            else:
+                session["pre_mfa_user_id"] = user.id
+                return redirect(url_for("main.mfa_setup"))
         else:
             flash('Login Unsuccessful, username or password incorrect', "danger")
     return render_template('login.html', form=form)
@@ -38,7 +40,7 @@ def logout():
     logout_user()
     return redirect(url_for('main.login'))
 
-@main.route("/mfa_setup", method=["GET", "POST"])
+@main.route("/mfa_setup", methods=["GET", "POST"])
 @login_required
 def mfa_setup():
     user = current_user
@@ -61,12 +63,36 @@ def mfa_setup():
         if user.verify_totp(token):
             user.mfa_enabled = True
             db.session.commit()
-            flash("MFA has been enabled for your account.", "info")
+            flash("MFA has been enabled for your account.", "success")
             return redirect(url_for('main.dashboard'))
         else:
             flash("Invalid authentication code. Try again.", "danger")
 
     return render_template('mfa_setup.html', form=form, qr_code=qr_b64, secret=user.totp_secret)
+
+@main.route("/mfa_verify", methods=["GET", "POST"])
+def mfa_verify():
+    if "pre_mfa_user_id" not in session:
+        return redirect(url_for("main.login"))
+
+    user = User.query.get(session["pre_mfa_user_id"])
+    if not user:
+        flash("User not found, please try again.", "danger")
+        return redirect(url_for("main.login"))
+
+    form =TOTPForm()
+    if form.validate_on_submit():
+        token = form.token.data
+        if user.verify_totp(token):
+            login_user(user)
+            regenerate_session()
+            session.pop("pre_mfa_user_id")
+            flash("Login Successful, MFA Verification Complete.", "success")
+            next_page= request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
+        else:
+            flash("Invalid authentication code. Try again.", "danger")
+    return render_template('mfa_verify.html', form=form)
 
 
 @login_manager.user_loader
