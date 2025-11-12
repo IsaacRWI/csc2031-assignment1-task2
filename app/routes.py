@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
+from app import login_manager
 from app.models import User
 
 main = Blueprint('main', __name__)
@@ -26,3 +27,7 @@ def dashboard():
 @main.route('/logout')
 def logout():
     return redirect(url_for('main.login'))
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
