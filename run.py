@@ -8,9 +8,15 @@ with app.app_context():
 
     if User.query.count() == 0:
         # Default users
-        admin = User(username='admin', password='admin123')
-        user1 = User(username='user1', password='letmein')
-        user2 = User(username='user2', password='welcome123')
+        # admin = User(username='admin', password='admin123')
+        # user1 = User(username='user1', password='letmein')
+        # user2 = User(username='user2', password='welcome123')
+        admin = User(username = "admin")
+        admin.set_password("admin123")
+        user1 = User(username='user1')
+        user1.set_password('letmein')
+        user2 = User(username='user2')
+        user2.set_password('welcome123')
 
         db.session.add_all([admin, user1, user2])
         db.session.commit()
