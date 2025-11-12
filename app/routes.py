@@ -41,9 +41,15 @@ def logout():
     return redirect(url_for('main.login'))
 
 @main.route("/mfa_setup", methods=["GET", "POST"])
-@login_required
 def mfa_setup():
-    user = current_user
+    if "pre_mfa_user_id" not in session:
+        return redirect(url_for("main.login"))
+
+    user = User.query.get(session["pre_mfa_user_id"])
+    if not user:
+        flash("User not found, please try again.", "danger")
+        return redirect(url_for("main.login"))
+
     if user.mfa_enabled:
         flash("MFA is already enabled on this account", "info")
         return redirect(url_for("main.dashboard"))
@@ -84,9 +90,9 @@ def mfa_verify():
     if form.validate_on_submit():
         token = form.token.data
         if user.verify_totp(token):
+            regenerate_session()  # moved session regeneration before logging user in to fix bug where users would be stuck on login screen even after authentication
             login_user(user)
-            regenerate_session()
-            session.pop("pre_mfa_user_id")
+            session.pop("pre_mfa_user_id", None)  # asked ai this needs a default value as well
             flash("Login Successful, MFA Verification Complete.", "success")
             next_page= request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))

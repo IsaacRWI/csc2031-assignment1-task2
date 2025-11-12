@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Setup Multi-Factor Authentication</h2>
+  <p>Scan the QR code with your authenticator app, or enter code manually.</p>
+
+  <!-- Display QR Code -->
+  <img src="data:image/png;base64,{{ qr_code }}" alt="Scan this QR code with your authenticator app">
+
+  <p>Secret code: <strong>{{ secret }}</strong></p>
+
+  <p>After set up enter 6 digit code for authentication</p>
+
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+
+    {{ form.token.label }}<br>
+    {{ form.token(size=10) }}<br>
+
+    {{ form.submit() }}
+  </form>
+
+  {% with messages = get_flashed_messages() %}
+  {% for message in messages %}
+    <p style="color:red;">{{ message }}</p>
+  {% endfor %}
+  {% endwith %}
+
+{% endblock %}

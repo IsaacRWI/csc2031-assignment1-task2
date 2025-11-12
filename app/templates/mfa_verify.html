@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Verify Multi-Factor Authentication</h2>
+  <p>Enter 6 digit authentication code.</p>
+
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+
+    {{ form.token.label }}<br>
+    {{ form.token(size=10) }}<br>
+
+    {{ form.submit() }}
+  </form>
+
+  {% with messages = get_flashed_messages() %}
+  {% for message in messages %}
+    <p style="color:red;">{{ message }}</p>
+  {% endfor %}
+  {% endwith %}
+
+{% endblock %}
