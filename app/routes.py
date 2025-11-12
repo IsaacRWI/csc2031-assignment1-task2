@@ -20,7 +20,7 @@ def login():
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
         else:
-            flash('Login Unsuccessful', "danger")
+            flash('Login Unsuccessful, username or password incorrect', "danger")
     return render_template('login.html', form=form)
 
 @main.route('/dashboard')
