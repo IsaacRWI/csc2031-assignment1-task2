@@ -3,6 +3,9 @@
 <h2>Welcome</h2>
 <p>This is your dashboard.</p>
 
+<a href="{{ url_for('main.logout') }}">Logout</a>
+
+
 {% with messages = get_flashed_messages() %}
 {% for message in messages %}
 <p style="color:red;">{{ message }}</p>
