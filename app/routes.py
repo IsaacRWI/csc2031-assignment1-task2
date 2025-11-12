@@ -38,8 +38,6 @@ def load_user(user_id):
 
 def regenerate_session():
     """had to ask ai for help with this function"""
-    session.new = dict(session)
     session.clear()
-    session.update(session.new)
     session["csrf_token"] = uuid4().hex
     # print("session regenerate")
