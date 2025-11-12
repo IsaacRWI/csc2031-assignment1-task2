@@ -1,24 +1,25 @@
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from app import login_manager
+from app.forms import LoginForm
 from app.models import User
+from flask_login import current_user, login_user, logout_user,login_required
 
 main = Blueprint('main', __name__)
 
 @main.route('/', methods=['GET', 'POST'])
 def login():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-
-        user = User.query.filter_by(username=username).first()
-
-        if user and user.password == password:
-            flash('Login successful!')
-            return redirect(url_for('main.dashboard'))
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user)
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
         else:
-            flash('Invalid username or password.')
-
-    return render_template('login.html')
+            flash('Login Unsuccessful', "danger")
+    return render_template('login.html', form=form)
 
 @main.route('/dashboard')
 def dashboard():
