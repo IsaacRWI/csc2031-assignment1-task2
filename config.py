@@ -8,7 +8,9 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     DEBUG = True
     TESTING = True
-
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
 
 # config_test = Config()
 # print(config_test.SECRET_KEY)
