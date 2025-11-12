@@ -70,6 +70,9 @@ def mfa_setup():
             user.mfa_enabled = True
             db.session.commit()
             flash("MFA has been enabled for your account.", "success")
+            regenerate_session()
+            login_user(user)
+            flash("Login Successful, MFA setup and Verification Complete.", "success")
             return redirect(url_for('main.dashboard'))
         else:
             flash("Invalid authentication code. Try again.", "danger")
