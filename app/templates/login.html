@@ -14,7 +14,6 @@
     {% if require_captcha %}
     <div>
         <img src="{{ url_for('main.captcha_image') }}" alt="CAPTCHA Image" />
-        <button type="button" onclick="this.previousElementSibling.src='{{ url_for('main.captcha_image') }}?'+Math.random();">Reload Captcha</button>
         <div>
         <label for="captcha">Captcha:</label>
         <input type="text" name="captcha" id="captcha" required>

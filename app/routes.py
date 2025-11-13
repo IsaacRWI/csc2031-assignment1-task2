@@ -41,30 +41,35 @@ def login():
 
     user = User.query.filter_by(username=form.username.data).first() if form.username.data else None
 
-    require_captcha = user and user.attempts >= 3
+    is_locked = user.is_locked() if user else False
+
+    if is_locked:
+        # print("still locked")
+        require_captcha = False
+        lockout_dt = user.lockout_until  # had to ask ai for help with fixing this part too
+        if lockout_dt.tzinfo is None:
+            lockout_dt = lockout_dt.replace(tzinfo=timezone.utc)
+        time_left = lockout_dt - datetime.now(timezone.utc)
+        minutes, seconds = divmod(time_left.seconds, 60)
+        flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
+        return render_template('login.html', form=form, require_captcha=require_captcha)
+    else:
+        require_captcha = user and 3 <= user.attempts < 5
+
     if require_captcha and "captcha_text" not in session:
-        session["captcha_text"] = random_text()
+            session["captcha_text"] = random_text()
 
     if form.validate_on_submit():
         ip_attempts[ip].append(time.time())
         if user:
-            if user.is_locked():
-                # print("still locked")
-                lockout_dt = user.lockout_until  # had to ask ai for help with fixing this part too
-                if lockout_dt.tzinfo is None:
-                    lockout_dt = lockout_dt.replace(tzinfo=timezone.utc)
-                time_left = lockout_dt - datetime.now(timezone.utc)
-                minutes, seconds = divmod(time_left.seconds, 60)
-                flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
-                return render_template('login.html', form=form, require_captcha=require_captcha)
-
-            require_captcha = user.attempts >= 3
-
             if require_captcha:
                 user_captcha = (form.captcha.data or "").strip().upper()
                 actual_captcha = session.get('captcha_text', '').upper()
                 if user_captcha != actual_captcha:
                     flash("Wrong captcha, try again", "danger")
+                    user.attempts += 1
+                    db.session.commit()
+                    print("failed captcha", user.attempts)
                     session['captcha_text'] = random_text()
                     return render_template('login.html', form=form, require_captcha=require_captcha)
             session.pop('captcha_text', None)
@@ -85,11 +90,12 @@ def login():
             db.session.commit()
 
             if user.attempts >= 5:
-                # print("5 fails locked")
+                print("5 fails locked")
                 user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=5)
                 user.attempts = 0
                 db.session.commit()
                 flash("Account locked for 5 minutes due to too many failed attempts, please try again later.", "danger")
+                return render_template('login.html', form=form, require_captcha=False)
             else:
                 flash('Login Unsuccessful, username or password incorrect', "danger")
     return render_template('login.html', form=form, require_captcha=require_captcha,)
