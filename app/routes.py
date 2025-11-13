@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, session, abort
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session, abort, send_file
 from app import login_manager, db
 from app.forms import LoginForm,TOTPForm,SetUpMFAForm
 from app.models import User
@@ -11,6 +11,9 @@ import base64
 from collections import defaultdict
 import time
 from datetime import datetime, timezone, timedelta
+from captcha.image import ImageCaptcha
+import random
+import string
 
 ip_attempts = defaultdict(list)
 
@@ -18,6 +21,8 @@ def remove_old_attempts(attempts, window_sec=60):
     now = time.time()
     return [i for i in attempts if now - i < window_sec]
 
+def random_text(length=5):
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 main = Blueprint('main', __name__)
 
@@ -26,6 +31,12 @@ def login():
     ip = request.remote_addr
     form = LoginForm()
     ip_attempts[ip] = remove_old_attempts(ip_attempts[ip])
+
+    require_captcha = len(ip_attempts[ip]) >= 3
+
+    if require_captcha:
+        if "captcha_text" not in session:
+            session["captcha_text"] = random_text()
 
     if len(ip_attempts[ip]) >= 7:
         flash("Too many login attempts from this IP address. Please try again later.", "danger")
@@ -36,16 +47,26 @@ def login():
     if form.validate_on_submit():
         ip_attempts[ip].append(time.time())
         user = User.query.filter_by(username=form.username.data).first()
+
+        if require_captcha:
+            user_captcha = (form.captcha.data or "").strip().upper()
+            actual_captcha = session.get('captcha_text', '').upper()
+            if user_captcha != actual_captcha:
+                flash("Wrong captcha, try again", "danger")
+                session['captcha_text'] = random_text()
+                return render_template('login.html', form=form, require_captcha=require_captcha)
+        session.pop('captcha_text', None)
+
         if user:
             if user.is_locked():
-                print("still locked")
+                # print("still locked")
                 lockout_dt = user.lockout_until  # had to ask ai for help with fixing this part too
                 if lockout_dt.tzinfo is None:
                     lockout_dt = lockout_dt.replace(tzinfo=timezone.utc)
                 time_left = lockout_dt - datetime.now(timezone.utc)
                 minutes, seconds = divmod(time_left.seconds, 60)
                 flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
-                return render_template('login.html', form=form)
+                return render_template('login.html', form=form, require_captcha=require_captcha)
 
         if user.check_password(form.password.data):
             user.attempts = 0
@@ -59,11 +80,11 @@ def login():
                 return redirect(url_for("main.mfa_setup"))
         else:
             user.attempts += 1
-            print("failed + 1", user.attempts)
+            # print("failed + 1", user.attempts)
             db.session.commit()
 
             if user.attempts >= 5:
-                print("5 fails locked")
+                # print("5 fails locked")
                 user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=5)
                 user.attempts = 0
                 db.session.commit()
@@ -146,6 +167,11 @@ def mfa_verify():
             flash("Invalid authentication code. Try again.", "danger")
     return render_template('mfa_verify.html', form=form)
 
+@main.route("/captcha_image")
+def captcha_image():
+    image = ImageCaptcha(width=280, height=90)
+    data = image.generate(session["captcha_text"])
+    return send_file(data, mimetype='image/png')
 
 @login_manager.user_loader
 def load_user(user_id):

@@ -8,3 +8,4 @@ dotenv
 pyotp
 qrcode
 pillow
+captcha
