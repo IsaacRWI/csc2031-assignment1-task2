@@ -32,31 +32,21 @@ def login():
     form = LoginForm()
     ip_attempts[ip] = remove_old_attempts(ip_attempts[ip])
 
-    require_captcha = len(ip_attempts[ip]) >= 3
-
-    if require_captcha:
-        if "captcha_text" not in session:
-            session["captcha_text"] = random_text()
-
     if len(ip_attempts[ip]) >= 7:
         flash("Too many login attempts from this IP address. Please try again later.", "danger")
-        return render_template('login.html', form=form)
+        return render_template('login.html', form=form, require_captcha=False)
 
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
+
+    user = User.query.filter_by(username=form.username.data).first() if form.username.data else None
+
+    require_captcha = user and user.attempts >= 3
+    if require_captcha and "captcha_text" not in session:
+        session["captcha_text"] = random_text()
+
     if form.validate_on_submit():
         ip_attempts[ip].append(time.time())
-        user = User.query.filter_by(username=form.username.data).first()
-
-        if require_captcha:
-            user_captcha = (form.captcha.data or "").strip().upper()
-            actual_captcha = session.get('captcha_text', '').upper()
-            if user_captcha != actual_captcha:
-                flash("Wrong captcha, try again", "danger")
-                session['captcha_text'] = random_text()
-                return render_template('login.html', form=form, require_captcha=require_captcha)
-        session.pop('captcha_text', None)
-
         if user:
             if user.is_locked():
                 # print("still locked")
@@ -67,6 +57,17 @@ def login():
                 minutes, seconds = divmod(time_left.seconds, 60)
                 flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
                 return render_template('login.html', form=form, require_captcha=require_captcha)
+
+            require_captcha = user.attempts >= 3
+
+            if require_captcha:
+                user_captcha = (form.captcha.data or "").strip().upper()
+                actual_captcha = session.get('captcha_text', '').upper()
+                if user_captcha != actual_captcha:
+                    flash("Wrong captcha, try again", "danger")
+                    session['captcha_text'] = random_text()
+                    return render_template('login.html', form=form, require_captcha=require_captcha)
+            session.pop('captcha_text', None)
 
         if user.check_password(form.password.data):
             user.attempts = 0
@@ -80,7 +81,7 @@ def login():
                 return redirect(url_for("main.mfa_setup"))
         else:
             user.attempts += 1
-            # print("failed + 1", user.attempts)
+            print("failed + 1", user.attempts)
             db.session.commit()
 
             if user.attempts >= 5:
@@ -91,7 +92,7 @@ def login():
                 flash("Account locked for 5 minutes due to too many failed attempts, please try again later.", "danger")
             else:
                 flash('Login Unsuccessful, username or password incorrect', "danger")
-    return render_template('login.html', form=form)
+    return render_template('login.html', form=form, require_captcha=require_captcha,)
 
 @main.route('/dashboard')
 @login_required
