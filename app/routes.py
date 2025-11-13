@@ -44,7 +44,7 @@ def login():
     form = LoginForm()
     ip_attempts[ip] = remove_old_attempts(ip_attempts[ip])
 
-    if len(ip_attempts[ip]) >= 7:
+    if len(ip_attempts[ip]) >= 6:
         flash("Too many login attempts from this IP address. Please try again later.", "danger")
         log_event("warning", "timeout for 7 failed login attempts in 1 minute", form.username.data)
         return render_template('login.html', form=form, require_captcha=False)
@@ -58,7 +58,6 @@ def login():
 
     if is_locked:
         # print("still locked")
-        log_event("warning", "timeout for 5 consecutive failed login attempts", form.username.data)
         require_captcha = False
         lockout_dt = user.lockout_until  # had to ask ai for help with fixing this part too
         if lockout_dt.tzinfo is None:
@@ -70,7 +69,7 @@ def login():
         print("ip attempts append")
         return render_template('login.html', form=form, require_captcha=require_captcha)
     else:
-        require_captcha = user and 3 <= user.attempts < 5
+        require_captcha = user and 2 <= user.attempts < 4
 
     if require_captcha and "captcha_text" not in session:
         session["captcha_text"] = random_text()
@@ -109,8 +108,9 @@ def login():
             db.session.commit()
             log_event("warning", "failed login attempt", form.username.data)
 
-            if user.attempts >= 5:
+            if user.attempts >= 4:
                 # print("5 fails locked")
+                log_event("warning", "timeout for 5 consecutive failed login attempts", form.username.data)
                 user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=5)
                 user.attempts = 0
                 db.session.commit()
@@ -165,11 +165,11 @@ def mfa_setup():
             regenerate_session()
             login_user(user)
             flash("Login Successful, MFA setup and Verification Complete.", "success")
-            log_event("info", "mfa successfully set up and authenticated", current_user.username)
+            log_event("info", "mfa successfully set up and authenticated, login successful", user.username)
             return redirect(url_for('main.dashboard'))
         else:
             flash("Invalid authentication code. Try again.", "danger")
-            log_event("warning", "failed mfa authentication during set up", current_user.username)
+            log_event("warning", "failed mfa authentication during set up, invalid TOTP code", user.username)
 
     return render_template('mfa_setup.html', form=form, qr_code=qr_b64, secret=user.totp_secret)
 
@@ -191,12 +191,12 @@ def mfa_verify():
             login_user(user)
             session.pop("pre_mfa_user_id", None)  # asked ai this needs a default value as well
             flash("Login Successful, MFA Verification Complete.", "success")
-            log_event("info", "mfa successfully authenticated", current_user.username)
+            log_event("info", "mfa successfully authenticated, login successful", user.username)
             next_page= request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('main.dashboard'))
         else:
             flash("Invalid authentication code. Try again.", "danger")
-            log_event("warning", "failed mfa authentication", current_user.username)
+            log_event("warning", "failed mfa authentication, invalid TOTP code", user.username)
     return render_template('mfa_verify.html', form=form)
 
 @main.route("/captcha_image")
