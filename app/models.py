@@ -10,7 +10,7 @@ class User(db.Model, UserMixin):
     totp_secret = db.Column(db.String(16), nullable=False, default="")  # had to ask ai to help find this
     mfa_enabled = db.Column(db.Boolean, nullable=False, default=False)   # i forgot set default values for non-nullable fields
     attempts = db.Column(db.Integer, nullable=False, default=0)
-    lockout_until = db.Column(db.DateTime, nullable=True)
+    lockout_until = db.Column(db.DateTime(timezone=True), nullable=True)
 
     def hash_password(self, text_password):
         self.password = bcrypt.generate_password_hash(text_password).decode('utf-8')
@@ -29,6 +29,12 @@ class User(db.Model, UserMixin):
         return totp.verify(token)
 
     def is_locked(self):
-        if self.lockout_until and self.lockout_until > datetime.now(timezone.utc):
-            return True
-        else: return False
+        """had to ask ai to fix this bit cant compare offset-naive and offset-aware datetimes"""
+        if self.lockout_until:
+            lockout_dt = self.lockout_until
+            # If naive, make it aware as UTC
+            if lockout_dt.tzinfo is None:
+                lockout_dt = lockout_dt.replace(tzinfo=timezone.utc)
+            if lockout_dt > datetime.now(timezone.utc):
+                return True
+        return False

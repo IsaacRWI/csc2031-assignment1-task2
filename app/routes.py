@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, session
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session, abort
 from app import login_manager, db
 from app.forms import LoginForm,TOTPForm,SetUpMFAForm
 from app.models import User
@@ -8,17 +8,48 @@ import pyotp
 import qrcode
 import io
 import base64
+from collections import defaultdict
+import time
+from datetime import datetime, timezone, timedelta
+
+ip_attempts = defaultdict(list)
+
+def remove_old_attempts(attempts, window_sec=60):
+    now = time.time()
+    return [i for i in attempts if now - i < window_sec]
+
 
 main = Blueprint('main', __name__)
 
 @main.route('/', methods=['GET', 'POST'])
 def login():
+    ip = request.remote_addr
+    form = LoginForm()
+
+    if len(ip_attempts[ip]) >= 7:
+        flash("Too many login attempts from this IP address. Please try again later.", "danger")
+        return render_template('login.html', form=form)
+
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
-    form = LoginForm()
     if form.validate_on_submit():
+        ip_attempts[ip].append(time.time())
         user = User.query.filter_by(username=form.username.data).first()
-        if user and user.check_password(form.password.data):
+        if user:
+            if user.is_locked():
+                print("still locked")
+                lockout_dt = user.lockout_until  # had to ask ai for help with fixing this part too
+                if lockout_dt.tzinfo is None:
+                    lockout_dt = lockout_dt.replace(tzinfo=timezone.utc)
+                time_left = lockout_dt - datetime.now(timezone.utc)
+                minutes, seconds = divmod(time_left.seconds, 60)
+                flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
+                return render_template('login.html', form=form)
+
+        if user.check_password(form.password.data):
+            user.attempts = 0
+            user.lockout_until = None
+            db.session.commit()
             if user.mfa_enabled:
                 session["pre_mfa_user_id"] = user.id
                 return redirect(url_for("main.mfa_verify"))
@@ -26,7 +57,18 @@ def login():
                 session["pre_mfa_user_id"] = user.id
                 return redirect(url_for("main.mfa_setup"))
         else:
-            flash('Login Unsuccessful, username or password incorrect', "danger")
+            user.attempts += 1
+            print("failed + 1", user.attempts)
+            db.session.commit()
+
+            if user.attempts >= 5:
+                print("5 fails locked")
+                user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+                user.attempts = 0
+                db.session.commit()
+                flash("Account locked for 5 minutes due to too many failed attempts, please try again later.", "danger")
+            else:
+                flash('Login Unsuccessful, username or password incorrect', "danger")
     return render_template('login.html', form=form)
 
 @main.route('/dashboard')
