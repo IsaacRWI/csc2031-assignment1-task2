@@ -52,6 +52,8 @@ def login():
         time_left = lockout_dt - datetime.now(timezone.utc)
         minutes, seconds = divmod(time_left.seconds, 60)
         flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
+        ip_attempts[ip].append(time.time())
+        print("ip attempts append")
         return render_template('login.html', form=form, require_captcha=require_captcha)
     else:
         require_captcha = user and 3 <= user.attempts < 5
@@ -61,6 +63,7 @@ def login():
 
     if form.validate_on_submit():
         ip_attempts[ip].append(time.time())
+        print("ip attempts append")
         if user:
             if require_captcha:
                 user_captcha = (form.captcha.data or "").strip().upper()
