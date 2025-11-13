@@ -3,6 +3,7 @@ from wtforms import StringField, PasswordField, SubmitField, BooleanField
 from wtforms.validators import DataRequired, length
 
 class LoginForm(FlaskForm):
+    """login form to take advantage of wtforms built in csrf tokens with form.hidden_tag()"""
     username = StringField('username', validators=[DataRequired()])
     password = PasswordField('password', validators=[DataRequired()])
     captcha = StringField('captcha')
