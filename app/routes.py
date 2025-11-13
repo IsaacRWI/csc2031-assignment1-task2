@@ -140,11 +140,12 @@ def logout():
 
 @main.route("/mfa_setup", methods=["GET", "POST"])
 def mfa_setup():
+    """function for page to set up mfa"""
     if "pre_mfa_user_id" not in session:
         return redirect(url_for("main.login"))
 
-    user = User.query.get(session["pre_mfa_user_id"])
-    if not user:
+    user = User.query.get(session["pre_mfa_user_id"])  # had to ask ai for help with this bit again
+    if not user:  # cant find user in database
         flash("User not found, please try again.", "danger")
         log_event("warning", "failed mfa setup, user not found", user.username)
         return redirect(url_for("main.login"))
@@ -156,16 +157,16 @@ def mfa_setup():
         user.totp_secret = pyotp.random_base32()
         db.session.commit()
 
-    uri =user.get_totp_uri()
-    qr = qrcode.make(uri)
-    buf = io.BytesIO()
+    uri =user.get_totp_uri()  # pyotp to generate totp uri
+    qr = qrcode.make(uri)  # turn that uri into a qr code
+    buf = io.BytesIO()  # buffer to store the qr code
     qr.save(buf, format="PNG")
     qr_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
     form = SetUpMFAForm()
     if form.validate_on_submit():
-        token = form.token.data
-        if user.verify_totp(token):
+        token = form.token.data  # user input for the totp code
+        if user.verify_totp(token):  # if totp code matches
             user.mfa_enabled = True
             db.session.commit()
             flash("MFA has been enabled for your account.", "success")
@@ -182,6 +183,7 @@ def mfa_setup():
 
 @main.route("/mfa_verify", methods=["GET", "POST"])
 def mfa_verify():
+    """function to verify accounts who already have mfa set up"""
     if "pre_mfa_user_id" not in session:
         return redirect(url_for("main.login"))
 
@@ -196,7 +198,7 @@ def mfa_verify():
         if user.verify_totp(token):
             regenerate_session()  # moved session regeneration before logging user in to fix bug where users would be stuck on login screen even after authentication
             login_user(user)
-            session.pop("pre_mfa_user_id", None)  # asked ai this needs a default value as well
+            session.pop("pre_mfa_user_id", None)  # asked ai this needs a default value as well or it breaks
             flash("Login Successful, MFA Verification Complete.", "success")
             log_event("info", "mfa successfully authenticated, login successful", user.username)
             next_page= request.args.get('next')
@@ -217,7 +219,7 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 def regenerate_session():
-    """had to ask ai for help with this function"""
+    """function to clear the session and regenerate a new csrf token"""
     session.clear()
     session["csrf_token"] = uuid4().hex
     # print("session regenerate")
