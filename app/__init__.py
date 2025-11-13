@@ -5,6 +5,7 @@ from flask_wtf import CSRFProtect
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager
 
+# initialize flask extensions for later use
 db = SQLAlchemy()
 csrf = CSRFProtect()
 bcrypt = Bcrypt()
@@ -17,7 +18,7 @@ def create_app():
     db.init_app(app)
     csrf.init_app(app)
     bcrypt.init_app(app)
-    login_manager.init_app(app)
+    login_manager.init_app(app)  # initialize
 
     login_manager.login_view = "main.login"
     login_manager.login_message_category = "info"
