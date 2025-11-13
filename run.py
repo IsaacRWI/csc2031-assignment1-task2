@@ -12,7 +12,7 @@ with app.app_context():
         # user1 = User(username='user1', password='letmein')
         # user2 = User(username='user2', password='welcome123')
         admin = User(username = "admin")
-        admin.hash_password("admin123")
+        admin.hash_password("admin123")  # uses hashed passwords through bcrypt instead of plain text
         user1 = User(username='user1')
         user1.hash_password('letmein')
         user2 = User(username='user2')
