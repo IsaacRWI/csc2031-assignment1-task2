@@ -14,6 +14,18 @@ from datetime import datetime, timezone, timedelta
 from captcha.image import ImageCaptcha
 import random
 import string
+import logging
+
+logging.basicConfig(filename="app.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+def log_event(level, message, username=None):
+    ip = request.remote_addr
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_message = f"{timestamp} Client IP:{ip}, User:{username or "N/A"} | {message}"
+    if level == logging.INFO:
+        logging.info(log_message)
+    elif level == logging.WARNING:
+        logging.warning(log_message)
 
 ip_attempts = defaultdict(list)
 
