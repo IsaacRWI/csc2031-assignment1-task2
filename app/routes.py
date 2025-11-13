@@ -25,6 +25,7 @@ main = Blueprint('main', __name__)
 def login():
     ip = request.remote_addr
     form = LoginForm()
+    ip_attempts[ip] = remove_old_attempts(ip_attempts[ip])
 
     if len(ip_attempts[ip]) >= 7:
         flash("Too many login attempts from this IP address. Please try again later.", "danger")
