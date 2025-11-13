@@ -46,7 +46,7 @@ def login():
 
     if len(ip_attempts[ip]) >= 6:
         flash("Too many login attempts from this IP address. Please try again later.", "danger")
-        log_event("warning", "timeout for 7 failed login attempts in 1 minute", form.username.data)
+        log_event("warning", "account lockout for 7 failed login attempts in 1 minute", form.username.data)
         return render_template('login.html', form=form, require_captcha=False)
 
     if current_user.is_authenticated:
@@ -66,7 +66,7 @@ def login():
         minutes, seconds = divmod(time_left.seconds, 60)
         flash(f'Account timed out, try again in {minutes}m {seconds}s.', 'danger')
         ip_attempts[ip].append(time.time())
-        print("ip attempts append")
+        # print("ip attempts append")
         return render_template('login.html', form=form, require_captcha=require_captcha)
     else:
         require_captcha = user and 2 <= user.attempts < 4
@@ -74,6 +74,7 @@ def login():
     if require_captcha and "captcha_text" not in session:
         session["captcha_text"] = random_text()
         log_event("info", "captcha triggered", form.username.data)
+        log_event("warning", "suspicious login pattern", form.username.data)
 
     if form.validate_on_submit():
         ip_attempts[ip].append(time.time())
@@ -93,6 +94,7 @@ def login():
             session.pop('captcha_text', None)
 
         if user.check_password(form.password.data):
+            log_event("info", "pre mfa login successful", form.username.data)
             user.attempts = 0
             user.lockout_until = None
             db.session.commit()
@@ -110,7 +112,7 @@ def login():
 
             if user.attempts >= 4:
                 # print("5 fails locked")
-                log_event("warning", "timeout for 5 consecutive failed login attempts", form.username.data)
+                log_event("warning", "account lockout 5 consecutive failed login attempts", form.username.data)
                 user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=5)
                 user.attempts = 0
                 db.session.commit()
@@ -129,6 +131,7 @@ def dashboard():
 @login_required
 def logout():
     log_event("info", "logout", current_user.username)
+    session.clear()
     logout_user()
     return redirect(url_for('main.login'))
 
@@ -140,6 +143,7 @@ def mfa_setup():
     user = User.query.get(session["pre_mfa_user_id"])
     if not user:
         flash("User not found, please try again.", "danger")
+        log_event("warning", "failed mfa setup, user not found", user.username)
         return redirect(url_for("main.login"))
 
     if user.mfa_enabled:
