@@ -63,7 +63,7 @@ def login():
 
     if form.validate_on_submit():
         ip_attempts[ip].append(time.time())
-        print("ip attempts append")
+        # print("ip attempts append")
         if user:
             if require_captcha:
                 user_captcha = (form.captcha.data or "").strip().upper()
@@ -72,7 +72,7 @@ def login():
                     flash("Wrong captcha, try again", "danger")
                     user.attempts += 1
                     db.session.commit()
-                    print("failed captcha", user.attempts)
+                    # print("failed captcha", user.attempts)
                     session['captcha_text'] = random_text()
                     return render_template('login.html', form=form, require_captcha=require_captcha)
             session.pop('captcha_text', None)
@@ -89,11 +89,11 @@ def login():
                 return redirect(url_for("main.mfa_setup"))
         else:
             user.attempts += 1
-            print("failed + 1", user.attempts)
+            # print("failed + 1", user.attempts)
             db.session.commit()
 
             if user.attempts >= 5:
-                print("5 fails locked")
+                # print("5 fails locked")
                 user.lockout_until = datetime.now(timezone.utc) + timedelta(minutes=5)
                 user.attempts = 0
                 db.session.commit()
